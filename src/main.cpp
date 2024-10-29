@@ -1,6 +1,7 @@
 #include <Esp.h>
 #include <modules\ultrasonic_HC_SR04\HC_SR04.h>
 #include <utils.h>
+#include <cfg.h>
 
 // Вывод логов
 #define IS_PRINT true
@@ -29,6 +30,10 @@ void setup()
   ledInit(LED_PIN);
   Serial.begin(9600);
   sensorHcSr04.begin();
+
+  DEBUG_PRINT("Controller number: ");
+  chipId = ESP.getChipId();
+  DEBUG_PRINTLN(chipId);
 
   DEBUG_PRINTLN("End init");
 }
