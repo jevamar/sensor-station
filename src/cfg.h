@@ -6,7 +6,9 @@
 
 #include "Esp.h"
 
-uint32_t chipId;
-
+namespace cfg
+{
+    uint32_t chipId;
+}
 
 #endif //CFG_H
