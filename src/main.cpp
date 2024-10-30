@@ -1,5 +1,5 @@
 #include <Esp.h>
-#include <modules\ultrasonic_HC_SR04\HC_SR04.h>
+#include <modules/ultrasonic_HC_SR04/HC_SR04.h>
 #include <utils.h>
 #include <cfg.h>
 
