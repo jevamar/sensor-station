@@ -1,6 +1,8 @@
 #include <Esp.h>
 #include <modules/ultrasonic_HC_SR04/HC_SR04.h>
 #include <modules/BMx280/BMx280.h>
+#include <Adafruit_SHT31.h>
+// #include <WEMOS_SHT3X.h>
 #include <utils.h>
 #include <cfg.h>
 #include <Wire.h>
@@ -17,12 +19,21 @@
   #define DEBUG_PRINTLN(...) {}
 #endif
 
+// Период опроса датчиков
+uint32_t period = 1000;
+uint32_t lastTime = 0;
+
 // Пины для порта I2C
 #define PIN_I2C_SDL D5
 #define PIN_I2C_SDA D6
 
 // Датчик температуры, давления и влажности
 BMx280 bmx280;
+
+// Датчик температуры и влажности SHT3x
+Adafruit_SHT31 sht3x = Adafruit_SHT31();
+
+// SHT3X sht3x(0x45);
 
 // Ультразвуковой сенсор растояния
 #define PIN_UKTRASONIC_TRIG D2
@@ -35,29 +46,38 @@ HC_SR04 sensorHcSr04(PIN_UKTRASONIC_TRIG, PIN_UKTRASONIC_ECHO);
 
 void setup() 
 {
-  DEBUG_PRINTLN("Start init");
-  
+  Wire.begin(PIN_I2C_SDA, PIN_I2C_SDL);
   Serial.begin(9600);
+  Serial.flush();
+
+  delay(1000);
+
+  DEBUG_PRINTLN(F(".........."));
+  DEBUG_PRINTLN(F("Start init"));
 
   ledInit(LED_PIN);
-  delay(1000);
-  Wire.begin(PIN_I2C_SDA, PIN_I2C_SDL);
 
 
   cfg::chipId = ESP.getChipId();
-  DEBUG_PRINT("Controller number: ");
+  DEBUG_PRINT(F("Controller number: "));
   DEBUG_PRINTLN(cfg::chipId);
   
   sensorHcSr04.begin();
   
   if(bmx280.begin()){
-    DEBUG_PRINT("Temp sensor: ");
+    DEBUG_PRINT(F("Temp sensor: "));
     DEBUG_PRINTLN(bmx280.getName());
   } else {
-    DEBUG_PRINTLN("Temp sensor not found");
+    DEBUG_PRINTLN(F("Temp sensor not found"));
   }
 
-  DEBUG_PRINTLN("End init");
+  if(sht3x.begin()){
+    DEBUG_PRINTLN(F("SHT3x sensor: OK"));
+  } else {
+    DEBUG_PRINTLN(F("SHT3x sensor not found"));
+  }
+
+  DEBUG_PRINTLN(F("End init"));
 }
 
 void loopHcSr04()
@@ -78,23 +98,52 @@ void loopHcSr04()
 void loopBMx280()
 {
   if(bmx280.read()) {
-    DEBUG_PRINT("Temp: ");
+    DEBUG_PRINT("BMx280 Temp: ");
     DEBUG_PRINTLN(bmx280.readTemperature());
 
-    DEBUG_PRINT("Pressure: ");
+    DEBUG_PRINT("BMx280 Pressure: ");
     DEBUG_PRINTLN(bmx280.readPressure());
 
-    DEBUG_PRINT("Humidity: ");
+    DEBUG_PRINT("BMx280 Humidity: ");
     DEBUG_PRINTLN(bmx280.readHumidity());
   }
 }
 
+
+void loopSHT3x()
+{
+  auto t = sht3x.readTemperature();
+	auto h = sht3x.readHumidity();
+
+	if (isnan(h) || isnan(t))
+	{
+    return;
+	}
+  DEBUG_PRINT("SHT3x Temp: ");
+  DEBUG_PRINTLN(t);
+
+  DEBUG_PRINT("SHT3x Humidity: ");
+  DEBUG_PRINTLN(h);
+}
+
+
 void loop()
 {
-  loopHcSr04();
-  loopBMx280();
+  uint32_t currentTime = millis();
+  if(currentTime - lastTime > period) {
+    lastTime = currentTime;
+    
+    loopHcSr04();
+    delay(10);
 
-  delay(200);
+    loopBMx280();
+    delay(10);
+    
+    loopSHT3x();
+    delay(50);
+
+    
+  }
 }
 
 /**
