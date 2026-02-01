@@ -6,6 +6,7 @@
 #include <utils.h>
 #include <cfg.h>
 #include <Wire.h>
+#include <GyverINA.h>
 
 
 // Вывод логов
@@ -19,13 +20,27 @@
   #define DEBUG_PRINTLN(...) {}
 #endif
 
+
+#ifndef LED_PIN
+  // Значения по умолчанию если не определены через build_flags
+  #ifdef ESP8266
+    // #define LED_PIN D4
+    // #define I2C_SDA D2
+    // #define I2C_SCL D1
+  #else
+    // #define LED_PIN 2
+    // #define I2C_SDA 6
+    // #define I2C_SCL 7
+  #endif
+#endif
+
 // Период опроса датчиков
 uint32_t period = 1000;
 uint32_t lastTime = 0;
 
 // Пины для порта I2C
-#define PIN_I2C_SDL D5
-#define PIN_I2C_SDA D6
+#define PIN_I2C_SDL I2C_SCL
+#define PIN_I2C_SDA I2C_SDA
 
 // Датчик температуры, давления и влажности
 BMx280 bmx280;
@@ -36,18 +51,21 @@ Adafruit_SHT31 sht3x = Adafruit_SHT31();
 // SHT3X sht3x(0x45);
 
 // Ультразвуковой сенсор растояния
-#define PIN_UKTRASONIC_TRIG D2
-#define PIN_UKTRASONIC_ECHO D3
+#define PIN_UKTRASONIC_TRIG TRIG_PIN
+#define PIN_UKTRASONIC_ECHO ECHO_PIN
 HC_SR04 sensorHcSr04(PIN_UKTRASONIC_TRIG, PIN_UKTRASONIC_ECHO);
 
+// ВА-метр
+INA219 ina; 
+
 // Внешний сигнальный диод
-#define LED_PIN D1
+// #define LED_PIN D1
 
 
 void setup() 
 {
   Wire.begin(PIN_I2C_SDA, PIN_I2C_SDL);
-  Serial.begin(9600);
+  Serial.begin(115200);
   Serial.flush();
 
   delay(1000);
@@ -55,10 +73,18 @@ void setup()
   DEBUG_PRINTLN(F(".........."));
   DEBUG_PRINTLN(F("Start init"));
 
+  #ifdef ESP8266
+    Serial.println("ESP8266 NodeMCU");
+  #elif ESP32
+    Serial.println("ESP32");
+  #endif
+
   ledInit(LED_PIN);
 
 
-  cfg::chipId = ESP.getChipId();
+  printChipInfo();
+
+  cfg::chipId = 0 ; // ESP.getChipId();
   DEBUG_PRINT(F("Controller number: "));
   DEBUG_PRINTLN(cfg::chipId);
   
@@ -76,6 +102,16 @@ void setup()
   } else {
     DEBUG_PRINTLN(F("SHT3x sensor not found"));
   }
+
+  if (ina.begin()) {	// ina.begin(4, 5) // Для ESP32/ESP8266 можно указать пины I2C
+    Serial.println(F("INA219 connected!"));
+    Serial.print(F("Calibration value: ")); Serial.println(ina.getCalibration());
+    ina.setResolution(INA219_VBUS, INA219_RES_12BIT_X4); 
+    ina.setResolution(INA219_VSHUNT, INA219_RES_12BIT_X128);
+  } else {
+    Serial.println(F("INA219 not found!"));
+  }
+
 
   DEBUG_PRINTLN(F("End init"));
 }
@@ -126,6 +162,30 @@ void loopSHT3x()
   DEBUG_PRINTLN(h);
 }
 
+void loopINA219()
+{
+  // Читаем напряжение
+  Serial.print(F("Voltage: "));
+  Serial.print(ina.getVoltage(), 3);
+  Serial.println(F(" V"));
+
+  // Читаем ток
+  Serial.print(F("Current: "));
+  Serial.print(ina.getCurrent(), 3);
+  Serial.println(F(" A"));
+
+  // Читаем мощность
+  Serial.print(F("Power: "));
+  Serial.print(ina.getPower(), 3);
+  Serial.println(F(" W"));
+
+  // Читаем напряжение на шунте
+  Serial.print(F("Shunt voltage: "));
+  Serial.print(ina.getShuntVoltage(), 6);
+  Serial.println(F(" V"));
+
+  Serial.println("");
+}
 
 void loop()
 {
@@ -142,7 +202,8 @@ void loop()
     loopSHT3x();
     delay(50);
 
-    
+    loopINA219();
+    delay(50);
   }
 }
 
